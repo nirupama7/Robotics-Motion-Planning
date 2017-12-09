@@ -254,7 +254,7 @@ function compareBtn_CreateFcn(hObject, eventdata, handles)
 
 % --- Executes on button press in lookUpBtn.
 function lookUpBtn_Callback(hObject, eventdata, handles)
-open('PRM_help.pdf');
+open('PRM_project_report.pdf');
 % hObject    handle to lookUpBtn (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
