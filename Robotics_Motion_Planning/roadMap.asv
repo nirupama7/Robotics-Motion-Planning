@@ -1,0 +1,99 @@
+% Calculate a path from qStart to xGoal
+% input: qStart -> 1x4 joint vector describing starting configuration of
+%                   arm
+%        xGoal -> 3x1 position describing desired position of end effector
+%        sphereCenter1,sphereCenter2,sphereCenter3,...
+%        sphereCenter4,sphereCenter5 -> 3x1 position of center of spherical obstacle
+%        sphereRadius -> radius of obstacle
+% output -> qMilestones -> nX6 vector of milestones. A straight-line interpolated
+%                    path through these milestones should result in a
+%                    collision-free path. You may output any number of
+%                    milestones. The first milestone should be qStart. The
+%                    last milestone should place the end effector at xGoal.
+function [elapsedTime,qMilestones] = roadMap(rob,sphereCenter1,sphereCenter2,sphereCenter3,...
+    sphereCenter4,sphereCenter5,sphereRadius,qStart,xGoal,failureCount)
+
+T0 = transl(xGoal);
+%goal position orientation
+qGoal = rob.ikine(T0);
+
+%initialized by start node
+nodes =qStart;
+dof = size(qStart,2);
+elapsedTime =[];
+
+tic
+
+while size(nodes)+1 <400
+    %generate a random node
+    qRand = (rand(1,dof) * 2 * pi) - pi;
+    if robotCollision(rob,qRand,sphereCenter1,sphereCenter2,sphereCenter3,...
+            sphereCenter4,sphereCenter5,sphereRadius)
+        continue;
+    end
+    nodes = [nodes; qRand;];
+end
+nodes=[nodes; qGoal];
+% for i=1:size(nodes,1)
+%     T0=rob.fkine(nodes(i,:));
+%     a=transl(T0);
+%     b=a';  
+%     plot3(b(1,1),b(1,2),b(1,3),'x', 'Color',  [0 0.4470 0.7410]);    
+% end
+% elapsed time for finding random nodes which are not in collision
+ elapsedtime1 = toc;
+ elapsedTime = [elapsedTime elapsedtime1];
+
+k = 10;
+kNearestNodes = [];
+edgesWithWeights = [];
+
+tic
+for i = 1 : size(nodes)
+    
+    kNearestNodes = fetchKNearestNeighbours(rob,nodes(i,:),nodes,sphereCenter1,...
+        sphereCenter2,sphereCenter3,sphereCenter4,sphereCenter5,sphereRadius);
+    edges = fetchEdgesWithWeights(k,i,kNearestNodes);
+    edgesWithWeights = [edgesWithWeights ; edges ;];
+    
+end
+
+% elapsed time for finding edge matrix with weights(euclidean distance)
+ elapsedTime2 = toc;
+ elapsedTime = [elapsedTime elapsedTime2];
+
+tic
+
+qMilestones = getShortestPath(edgesWithWeights,nodes,qGoal,qStart,...
+    rob,sphereCenter1,sphereCenter2,sphereCenter3,...
+    sphereCenter4,sphereCenter5,sphereRadius,xGoal,failureCount)
+
+for i=2:size(qMilestones,1)
+    T=rob.fkine(qMilestones(i-1,:));
+    x=transl(T);
+    y=x';
+    T1=rob.fkine(qMilestones(i,:));
+    v=transl(T1);
+    w=v';
+    line([y(1), w(1)], [y(2), w(2)], [y(3), w(3)], 'Color', 'r','LineWidth', 3);            
+            hold on;
+end
+% elapsed time for finding shortest path
+elapsedTime3 = toc;
+elapsedTime = [elapsedTime elapsedTime3]
+end
+
+%find nX3 edgesWithWeights matrix
+function edgesWithWeights = fetchEdgesWithWeights(k,nodeIndx, KnearestNodes)
+edgesWithWeights = [];
+
+for i= 1:size(KnearestNodes,1)
+    edgesWithWeights =[edgesWithWeights;nodeIndx KnearestNodes(i,1)...
+        KnearestNodes(i,2);];
+end
+
+end
+
+
+
+

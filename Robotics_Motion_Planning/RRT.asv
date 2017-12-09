@@ -1,0 +1,103 @@
+% Calculate a path from qStart to xGoal
+% input: qStart -> 1x4 joint vector describing starting configuration of
+%                   arm
+%        xGoal -> 3x1 position describing desired position of end effector
+%        sphereCenter -> 3x1 position of center of spherical obstacle
+%        sphereRadius -> radius of obstacle
+% output -> qMilestones -> 4xn vector of milestones. A straight-line interpolated
+%                    path through these milestones should result in a
+%                    collision-free path. You may output any number of
+%                    milestones. The first milestone should be qStart. The
+%                    last milestone should place the end effector at xGoal.
+function [elapsedTimeRRT,qMilestones] = RRT(rob,sphereCenter,sphereCenter2,sphereCenter3,sphereCenter4,sphereCenter5,sphereRadius,qStart,xGoal)
+
+Td = transl(xGoal);
+% calculate the goal configuration
+qGoal = rob.ikine(Td);
+n = size(qStart,2);
+%initialize step value
+step = 0.5;
+% Initialize the tree
+T = [qStart,0];
+q = [];
+
+% find qrand with the 10% probability of qrand being qGoal
+tic
+for i = 1:10000
+    if rand() < 0.1
+        qrand = qGoal;
+    else
+        % choose random values in the range of 180 to 360
+        qrand = rand(1,n) * 2 * pi - pi;
+    end
+    % check if robot is in collision
+    if robotCollision(rob,qrand,sphereCenter,sphereCenter2,sphereCenter3,sphereCenter4,sphereCenter5,sphereRadius)
+        continue;
+    end
+    Tk=rob.fkine(qrand);
+    x1=transl(Tk);
+    y1=x1';
+    plot3(y1(1), y1(2), y1(3), 'x', 'Color',  [0 0.4470 0.7410]);
+    %calculating euclidean distance
+    difference = T(:,1:6) - repmat (qrand,size(T,1),1);
+    distance2 = sum (difference.^2,2);
+    [~,nearindex] = min(distance2);
+    nearest_node = T(nearindex,1:n);
+    
+    % extend the tree
+    qnew = qrand - nearest_node;
+    if norm(qnew) > step
+        qnew = step * qnew / norm(qnew);
+    end
+    
+    qnew = qnew + nearest_node;
+    q = [qnew;q];
+    % check if path in collision
+    if edgeCollision(rob,nearest_node,qnew,sphereCenter,sphereCenter2,sphereCenter3,sphereCenter4,sphereCenter5,sphereRadius)
+        continue;
+    end
+    N=rob.fkine(nearest_node);
+    a=transl(N);
+    b=a';
+    N1=rob.fkine(qnew);
+    v=transl(N1);
+    w=v';
+    line([(1), w(1)], [y(2), w(2)], [y(3), w(3)], 'Color', 'r','LineWidth', 3);
+    hold on;
+    % update the tree
+    T = [T; qnew nearindex];
+    % break if end goal is reached
+    if qnew == qGoal
+        break;
+    end
+end
+% update the qMilestones
+qMilestones1 = getPath(T);
+qMilestones1 = qMilestones1(end:-1:1,:);
+qMilestones = rrtSmoothPath(rob,qMilestones1,sphereCenter,sphereCenter2,sphereCenter3,sphereCenter4,sphereCenter5,sphereRadius);
+elapsedTimeRRT=toc;
+end
+
+% getpath function
+function path = getPath(tree)
+idx = size(tree,1);
+path = tree(end,1:end-1);
+
+while(idx ~= 1)
+    
+    curr = tree(idx,1:end-1);
+    idx = tree(idx,end);
+    next = tree(idx,1:end-1);
+    path = [path;curr]
+end
+path = [path;next];
+
+end
+
+
+
+
+
+
+
+
